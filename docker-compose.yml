@@ -1,0 +1,206 @@
+
+x-kong-config:
+  &kong-env
+  KONG_DATABASE: ${KONG_DATABASE:-postgres}
+  KONG_PG_DATABASE: ${KONG_PG_DATABASE:-kong}
+  KONG_PG_HOST: kong-database
+  KONG_PG_USER: ${KONG_PG_USER:-kong}
+  KONG_PG_PASSWORD_FILE: /run/secrets/kong_postgres_password
+
+secrets:
+  kong_postgres_password:
+    file: ./POSTGRES_PASSWORD
+
+networks:
+  kong:
+    name: kong
+    external: false
+    ipam:
+      config:
+        - gateway: 172.28.0.1
+          subnet: "172.28.0.0/16"
+
+volumes:
+  kong_manager_prefix_vol:
+    name: kong_manager_prefix_vol
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+  kong_manager_tmp_vol:
+    name: kong_manager_tmp_vol
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+  kong_prefix_vol:
+    name: kong_prefix_vol
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+  kong_tmp_vol:
+    name: kong_tmp_vol
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+
+
+services:
+
+  haproxy:
+    image: "haproxy:latest"
+    command: haproxy -f /etc/haproxy
+    networks:
+      - kong
+    restart: always
+    volumes:
+      - /etc/haproxy:/etc/haproxy:ro
+    ports:
+      - "80:80/tcp"
+      - "443:443/tcp"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  httproxy:
+    image: "t0twn/httproxy:latest"
+    environment:
+      UPSTREAMS: "${UPSTREAMS:-https://kong-manager:443 https://kong-manager:444}"
+      LISTEN_PORTS: "${LISTEN_PORTS:-443 444}"
+      LISTEN_ADDR: "${LISTEN_ADDR:-0.0.0.0}"
+      USING_X_REAL_IP: "${USING_X_REAL_IP:-true}"
+      HTTPROXY_AUTH_USERNAME: "${HTTPROXY_AUTH_USERNAME:-t0twn}"
+      HTTPROXY_AUTH_PASSWORD: "${HTTPROXY_AUTH_PASSWORD:-t0twn}"
+    networks:
+      - kong
+    restart: always
+
+  manproxy:
+    image: "t0twn/httproxy:latest"
+    entrypoint: ["/bin/sh", "-c", "echo Hello from entrypoint; sleep infinity"]
+    network_mode: "host"
+    restart: always
+
+  kong-migrations:
+    image: "${KONG_DOCKER_TAG:-kong:latest}"
+    command: kong migrations bootstrap
+    profiles: [ "database" ]
+    depends_on:
+      - kong-database
+    environment:
+      <<: *kong-env
+    secrets:
+      - kong_postgres_password
+    networks:
+      - kong
+    restart: on-failure
+
+  kong-migrations-up:
+    image: "${KONG_DOCKER_TAG:-kong:latest}"
+    command: kong migrations up && kong migrations finish
+    profiles: [ "database" ]
+    depends_on:
+      - kong-database
+    environment:
+      <<: *kong-env
+    secrets:
+      - kong_postgres_password
+    networks:
+      - kong
+    restart: on-failure
+
+  kong-database:
+    image: postgres:9.5
+    profiles: [ "database" ]
+    environment:
+      POSTGRES_DB: ${KONG_PG_DATABASE:-kong}
+      POSTGRES_USER: ${KONG_PG_USER:-kong}
+      POSTGRES_PASSWORD_FILE: /run/secrets/kong_postgres_password
+    secrets:
+      - kong_postgres_password
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "pg_isready",
+          "-d",
+          "${KONG_PG_DATABASE:-kong}",
+          "-U",
+          "${KONG_PG_USER:-kong}"
+        ]
+      interval: 30s
+      timeout: 30s
+      retries: 3
+    restart: always
+    stdin_open: true
+    tty: true
+    networks:
+      - kong
+    volumes:
+      - /data/docker/kong-database:/var/lib/postgresql/data
+
+  kong-manager:
+    image: "${KONG_DOCKER_TAG:-kong:latest}"
+    user: "${KONG_USER:-kong}"
+    environment:
+      <<: *kong-env
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: "${KONG_ADMIN_LISTEN:-0.0.0.0:444 ssl}"                      # api listen
+      KONG_ADMIN_GUI_LISTEN: "${KONG_ADMIN_GUI_LISTEN:-0.0.0.0:443 ssl}"              # web listen
+      KONG_ADMIN_GUI_API_URL: "${KONG_ADMIN_GUI_API_URL:-https://api.kong-manager.}"  # api url in web
+      KONG_ADMIN_GUI_URL: "${KONG_ADMIN_GUI_URL:-https://kong-manager.}"              # web url allowed
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_PREFIX: ${KONG_PREFIX:-/var/run/kong}
+      KONG_DECLARATIVE_CONFIG: "/opt/kong/kong.yaml"
+    secrets:
+      - kong_postgres_password
+    networks:
+      - kong
+    healthcheck:
+      test: [ "CMD", "kong", "health" ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    restart: always
+    read_only: true
+    volumes:
+      - kong_manager_prefix_vol:${KONG_PREFIX:-/var/run/kong}
+      - kong_manager_tmp_vol:/tmp
+    security_opt:
+      - no-new-privileges
+
+  kong:
+    image: "${KONG_DOCKER_TAG:-kong:latest}"
+    user: "${KONG_USER:-kong}"
+    environment:
+      <<: *kong-env
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_PROXY_LISTEN: "${KONG_PROXY_LISTEN:-0.0.0.0:8080,0.0.0.0:8443 ssl}"
+      KONG_ADMIN_LISTEN: "${KONG_ADMIN_LISTEN:-0.0.0.0:8001,0.0.0.0:8444 ssl}"
+      KONG_ADMIN_GUI_LISTEN: "${KONG_ADMIN_GUI_LISTEN:-0.0.0.0:8002}"
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_PREFIX: ${KONG_PREFIX:-/var/run/kong}
+      KONG_DECLARATIVE_CONFIG: "/opt/kong/kong.yaml"
+    secrets:
+      - kong_postgres_password
+    networks:
+      kong:
+        ipv4_address: 172.28.0.100
+    ports:
+      - "127.0.0.1:8444:8444/tcp"
+      - "127.0.0.1:8002:8002/tcp"
+    healthcheck:
+      test: [ "CMD", "kong", "health" ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    restart: always
+    read_only: true
+    volumes:
+      - kong_prefix_vol:${KONG_PREFIX:-/var/run/kong}
+      - kong_tmp_vol:/tmp
+    security_opt:
+      - no-new-privileges
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
