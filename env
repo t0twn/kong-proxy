@@ -1,0 +1,4 @@
+export KONG_ADMIN_GUI_URL=https://kong-manager.
+export KONG_ADMIN_GUI_API_URL=https://api.kong-manager.
+export HTTPROXY_AUTH_USERNAME=t0twn
+export HTTPROXY_AUTH_PASSWORD=t0twn
