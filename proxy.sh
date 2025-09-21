@@ -4,6 +4,7 @@ CURRENT_DIR=`dirname $0`
 SCRIPT_NAME=`basename $0`
 KONG_INITED="$CURRENT_DIR/kong_inited"
 POSTGRES_PASSWORD="$CURRENT_DIR/POSTGRES_PASSWORD"
+SUB_APP_DIR="app"
 
 
 up(){
@@ -32,7 +33,7 @@ main(){
 
     init; fun=$1; app=$2;
 
-    test -n $app && { test -d $app || { echo "App $app NOT found." >&2; exit 1;} }
+    test -n $app && { test -d $app || { test -d $SUB_APP_DIR/$app && app=$SUB_APP_DIR/$app; } || { echo "App $app NOT found." >&2; exit 1;} }
 
     case $fun in
         "up")
