@@ -9,7 +9,7 @@ SUB_APP_DIR="app"
 
 up(){
     app=$1
-    cd $app && docker compose -p kong up -d
+    cd $app && { test -f env.sh; source env.sh; }; docker compose -p kong up -d
 }
 
 down(){
