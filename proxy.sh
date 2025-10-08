@@ -11,7 +11,7 @@ up(){
     app=$1
     test -f env.sh || { test -f env.sh.sample && cp env.sh.sample env.sh; }
     test -f env.sh && source env.sh || echo NO global env.sh set
-    cd $app && { test -f env.sh; source env.sh; }; docker compose -p kong up -d
+    cd $app && { test -f env.sh && source env.sh; }; docker compose -p kong up -d
 }
 
 down(){
