@@ -2,7 +2,7 @@
 CURRENT_DIR=`dirname $0`
 
 TMP_DIR=$CURRENT_DIR/.tmp
-ENV_CFG=$CURRENT_DIR/env
+ENV_CFG=$CURRENT_DIR/env.sh
 
 SSL_CFG=$CURRENT_DIR/kong-sync.yml
 KONG_CFG=$CURRENT_DIR/kong-sync-cfg.yml
@@ -14,6 +14,7 @@ DECK_VERSION=1.44.0
 deck_inst(){
     which deck >/dev/null 2>&1 && return
 
+    test -d $TMP_DIR || mkdir $TMP_DIR
     deck_tar_gz=${TMP_DIR}/deck.tar.gz
     curl -sL https://github.com/kong/deck/releases/download/v${DECK_VERSION}/deck_${DECK_VERSION}_linux_amd64.tar.gz -o $deck_tar_gz
     tar xf $deck_tar_gz -C ${TMP_DIR}
