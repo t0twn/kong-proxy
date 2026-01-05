@@ -9,8 +9,7 @@ SUB_APP_DIR="app"
 
 up(){
     app=$1
-    test -f env.sh || { test -f env.sh.sample && cp env.sh.sample env.sh; }
-    test -f env.sh && source env.sh || echo NO global env.sh set
+    test -f env.sh && source env.sh || { echo env.sh not found. Please copy env.sh.sample to env.sh and customize it as needed.; exit 1;}
     cd $app && { test -f env.sh && source env.sh; }; docker compose -p kong up -d
 }
 
@@ -23,6 +22,8 @@ init(){
     test -f $KONG_INITED && return
 
     test -f $POSTGRES_PASSWORD || uuidgen >$POSTGRES_PASSWORD
+
+    test -f env.sh && source env.sh || { echo env.sh not found. Please copy env.sh.sample to env.sh and customize it as needed.; exit 1;}
 
     mkdir -p /etc/haproxy/map/ && \
     touch /etc/haproxy/map/{301,backend} && \
