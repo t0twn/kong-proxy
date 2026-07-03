@@ -1,0 +1,20 @@
+networks:
+  kong:
+    name: kong
+    external: true
+
+services:
+
+  haproxy:
+    image: "haproxy:latest"
+    command: haproxy -f /etc/haproxy
+    networks:
+      - kong
+    restart: always
+    volumes:
+      - /etc/haproxy:/etc/haproxy:ro
+    ports:
+      - "80:80/tcp"
+      - "443:443/tcp"
+    extra_hosts:
+      - "host.docker.internal:172.28.0.1"

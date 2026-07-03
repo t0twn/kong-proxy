@@ -14,11 +14,7 @@ secrets:
 networks:
   kong:
     name: kong
-    external: false
-    ipam:
-      config:
-        - gateway: 172.28.0.1
-          subnet: "172.28.0.0/16"
+    external: true
 
 volumes:
   kong_manager_prefix_vol:
@@ -44,20 +40,6 @@ volumes:
 
 
 services:
-
-  haproxy:
-    image: "haproxy:latest"
-    command: haproxy -f /etc/haproxy
-    networks:
-      - kong
-    restart: always
-    volumes:
-      - /etc/haproxy:/etc/haproxy:ro
-    ports:
-      - "80:80/tcp"
-      - "443:443/tcp"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
 
   httproxy:
     image: "t0twn/httproxy:latest"
